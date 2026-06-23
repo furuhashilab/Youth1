@@ -1,3 +1,240 @@
 https://codepen.io/MinatoTanabe/pen/Kwamwmy
 
 FIFA WOrld Cup　グループステージ進出国は、開催国３か国を除いて、基本的に各大陸リーグから数か国ずつ選出される。アフリカの場合は、５４か国が９グループに分かれて各グループの首位チームが選出される。今大会でワールドカップ初出場を果たしたRepublic of Cabo Verdeは、Republic of Angola、State of Libya、Republic of Mauritius、Republic of Cameroon、Kingdom of Eswatiniの５か国と１０試合を交え、7勝2分1敗の成績を残し、予選の突破を果たした。
+
+
+HTML
+<div id="cesiumContainer"></div>
+
+<div id="storyPopup"></div>
+
+CSS
+html,
+body,
+#cesiumContainer{
+  width:100%;
+  height:100%;
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  font-family:Arial, Helvetica, sans-serif;
+}
+
+#storyPopup{
+  position:absolute;
+
+  top:20px;
+  right:20px;
+
+  width:320px;
+
+  background:white;
+
+  padding:15px;
+
+  border-radius:12px;
+
+  box-shadow:0 0 20px rgba(0,0,0,.3);
+
+  z-index:999;
+
+  display:none;
+}
+
+#storyPopup h2{
+  margin-top:0;
+}
+
+JS
+Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3NGNmNDU3MS1kOThlLTQ3ZTItYWYwNi03ZDg4OWM4YTNlODEiLCJpZCI6NDQ3NDk1LCJzdWIiOiJNaW5hdG8iLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiTWluYXRvX2RlZmF1bHQiLCJpYXQiOjE3ODIxNDE1MTN9.U0q2zDjelVVe1kxSM6lxniVsDO6mk6IqrZd7CQY4TRs";
+
+/* =========================
+   Viewer（安定固定）
+========================= */
+
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  animation: false,
+  timeline: false,
+  baseLayerPicker: false,
+  infoBox: false,
+  selectionIndicator: false,
+  imageryProvider: false
+});
+
+viewer.imageryLayers.addImageryProvider(
+  new Cesium.OpenStreetMapImageryProvider({
+    url: "https://a.tile.openstreetmap.org/"
+  })
+);
+
+const popup = document.getElementById("storyPopup");
+
+/* =========================
+   ストーリー（原本保持）
+========================= */
+
+const locations = [
+  {
+    name:"Cape Verde",
+    coords:[-23.51,14.92],
+    html:`<h2>Cape Verde</h2><p>2026予選スタート</p>`
+  },
+  {
+    name:"Angola",
+    coords:[17.87,-11.20],
+    html:`<h2>Angola</h2><p>2025.3/25</p><p>Cape Verde 2-1 Angola :勝利</p>`
+  },
+  {
+    name:"Mauritius",
+    coords:[57.55,-20.16],
+    html:`<h2>Mauritius</h2><p>2025.9/4</p><p>Cape Verde 2-0 Mauritias :勝利</p>`
+  },
+  {
+    name:"Cameroon",
+    coords:[11.52,3.87],
+    html:`<h2>Cameroon</h2><p>2025.9/9</p><p>Cape Verde 1-0 Cameroon :勝利</p>`
+  },
+  {
+    name:"Libya",
+    coords:[13.19,32.89],
+    html:`<h2>Libya</h2><p>2025.10/8</p><p>Cape Verde 3-3 Libya :引き分け</p>`
+  },
+  {
+    name:"Eswatini",
+    coords:[31.14,-26.32],
+    html:`<h2>Eswatini</h2><p>2025.10/13</p><p>Cape Verde 3-0 Eswatini :勝利</p>`
+  },
+  {
+    name:"Atlanta",
+    coords:[-84.4010,33.7553],
+     distance: 3000,   // ←ここを追加（重要）
+  pitch: -25,
+  heading: 0,
+    html:`<h2>🇺🇸 Atlanta</h2><p>2026.6/15</p><p>カーボベルデW杯初出場</p><p>Cape Verde 0-0 Spain :引き分け`
+  }
+];
+
+/* =========================
+   ピン
+========================= */
+
+locations.forEach(loc => {
+  viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(loc.coords[0], loc.coords[1]),
+    point: {
+      pixelSize: 10,
+      color: Cesium.Color.YELLOW
+    }
+  });
+});
+
+/* =========================
+   状態管理
+========================= */
+
+let i = 0;
+let playing = false;
+
+/* =========================
+   ユーティリティ
+========================= */
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+/* =========================
+   カメラ制御（重要）
+========================= */
+
+function resetCamera() {
+  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+}
+
+/* =========================
+   2段階移動（現行最適）
+========================= */
+
+function travelTo(loc) {
+  return new Promise(resolve => {
+
+    resetCamera();
+
+    const lon = loc.coords[0];
+    const lat = loc.coords[1];
+
+    // ① 上空
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(
+        lon,
+        lat,
+        8000000
+      ),
+      duration: 2.2,
+      easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
+
+      complete: () => {
+
+        setTimeout(() => {
+
+          // ② ピンへズーム
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              lon,
+              lat,
+              500000
+            ),
+            duration: 2.2,
+            easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
+            complete: resolve
+          });
+
+        }, 300);
+
+      }
+    });
+  });
+}
+
+/* =========================
+   ストーリー本体
+========================= */
+
+async function runStory() {
+  if (playing) return;
+  playing = true;
+
+  while (i < locations.length) {
+
+    const loc = locations[i];
+
+    await travelTo(loc);
+
+    popup.innerHTML = loc.html;
+    popup.style.display = "block";
+
+    await sleep(4000);
+
+    i++;
+  }
+
+  resetCamera();
+
+  setTimeout(() => {
+    i = 0;
+    playing = false;
+    runStory();
+  }, 5000);
+}
+
+/* =========================
+   開始
+========================= */
+
+viewer.camera.flyTo({
+  destination: Cesium.Cartesian3.fromDegrees(-15, -25, 22000000),
+  duration: 4,
+  complete: () => {
+    setTimeout(runStory, 1500);
+  }
+});
